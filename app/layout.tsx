@@ -25,7 +25,19 @@ export const metadata: Metadata = {
   title: "Finora",
   description: "Personal finance clarity — AI-assisted tracking",
   icons: {
-    icon: "/favicon.png",
+    icon: [
+      {
+        url: "/favicon-16x16.png",
+        sizes: "16x16",
+        type: "image/png",
+      },
+      {
+        url: "/favicon-32x32.png",
+        sizes: "32x32",
+        type: "image/png",
+      },
+    ],
+    apple: "/apple-touch-icon.png",
   },
 };
 
