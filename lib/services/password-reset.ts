@@ -61,13 +61,24 @@ export async function requestPasswordReset(
     const tokenHash = hashToken(rawToken)
     const expiresAt = new Date(Date.now() + TOKEN_TTL_MS)
 
+    const base = getPublicAppUrl()
+    if (!base) {
+      throw new Error("AUTH_URL is not set")
+    }
+
     await prisma.passwordResetToken.create({
       data: { userId: user.id, tokenHash, expiresAt },
     })
 
-    const base = getPublicAppUrl()
     const resetUrl = `${base}/reset-password?token=${rawToken}`
-    await sendPasswordResetEmail({ email: user.email, name: user.name }, resetUrl)
+    try {
+      await sendPasswordResetEmail({ email: user.email, name: user.name }, resetUrl)
+    } catch (error) {
+      await prisma.passwordResetToken.deleteMany({
+        where: { tokenHash },
+      })
+      throw error
+    }
 
     return { data: { sent: true } }
   } catch (error) {

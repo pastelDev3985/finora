@@ -3,15 +3,20 @@ import { getPublicAppUrl } from "@/lib/public-app-url"
 
 // ─── Singleton ────────────────────────────────────────────────────────────────
 
-function createBrevoClient() {
+function createBrevoClient(): BrevoClient {
   const apiKey = process.env.BREVO_API_KEY
   if (!apiKey) throw new Error("BREVO_API_KEY is not set")
   return new BrevoClient({ apiKey, maxRetries: 2, timeoutInSeconds: 30 })
 }
 
-const globalForBrevo = globalThis as unknown as { brevo: BrevoClient }
-const brevo = globalForBrevo.brevo ?? createBrevoClient()
-if (process.env.NODE_ENV !== "production") globalForBrevo.brevo = brevo
+const globalForBrevo = globalThis as unknown as { brevo?: BrevoClient }
+
+function getBrevoClient(): BrevoClient {
+  if (!globalForBrevo.brevo) {
+    globalForBrevo.brevo = createBrevoClient()
+  }
+  return globalForBrevo.brevo
+}
 
 // ─── Sender ───────────────────────────────────────────────────────────────────
 
@@ -31,7 +36,7 @@ export async function sendEmailVerificationOtp(
   to: { email: string; name: string },
   otp: string
 ): Promise<void> {
-  await brevo.transactionalEmails.sendTransacEmail({
+  await getBrevoClient().transactionalEmails.sendTransacEmail({
     sender: getSender(),
     to: [to],
     subject: `${otp} is your Finora verification code`,
@@ -57,7 +62,7 @@ export async function sendWelcomeEmail(
   to: { email: string; name: string }
 ): Promise<void> {
   const firstName = to.name.split(" ")[0]
-  await brevo.transactionalEmails.sendTransacEmail({
+  await getBrevoClient().transactionalEmails.sendTransacEmail({
     sender: getSender(),
     to: [to],
     subject: `Welcome to Finora, ${firstName}!`,
@@ -84,7 +89,7 @@ export async function sendPasswordResetEmail(
   resetUrl: string
 ): Promise<void> {
   const firstName = to.name.split(" ")[0]
-  await brevo.transactionalEmails.sendTransacEmail({
+  await getBrevoClient().transactionalEmails.sendTransacEmail({
     sender: getSender(),
     to: [to],
     subject: "Reset your Finora password",

@@ -18,8 +18,13 @@ export async function POST(request: Request) {
       )
     }
 
-    // Always returns { sent: true } to prevent email enumeration
-    await requestPasswordReset(parsed.data.email)
+    const result = await requestPasswordReset(parsed.data.email)
+    if (result.error) {
+      return NextResponse.json(
+        { error: result.error },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json(
       { message: "If that email is registered, a reset link has been sent." },

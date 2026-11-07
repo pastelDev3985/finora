@@ -33,15 +33,28 @@ export function ForgotPasswordForm() {
 
     setIsSubmitting(true);
     try {
-      await fetch("/api/auth/forgot-password", {
+      const response = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: parsed.data.email }),
       });
-      // Always show the success state — never reveal whether the email exists
+
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(
+          body?.error ?? "Unable to send the reset email. Please try again.",
+        );
+      }
+
       setSubmitted(true);
-    } catch {
-      toast.error("Something went wrong. Please try again.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong. Please try again.",
+      );
     } finally {
       setIsSubmitting(false);
     }
