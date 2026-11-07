@@ -11,6 +11,7 @@ export async function upsertBudgetAction(data: unknown) {
   const result = await upsertBudget(session.user.id, data)
   if (result.error) return { error: result.error }
   revalidatePath("/budgets")
+  revalidatePath("/dashboard")
   return {}
 }
 
@@ -21,5 +22,6 @@ export async function deleteBudgetAction(id: string) {
   const result = await deleteBudget(session.user.id, id)
   if (result.error) return { error: result.error }
   revalidatePath("/budgets")
+  revalidatePath("/dashboard")
   return {}
 }

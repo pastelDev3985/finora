@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { prisma } from "@/lib/db"
+import { validateExpenseAgainstBudget } from "@/lib/services/budgets"
 import { Decimal } from "@/lib/generated/prisma/internal/prismaNamespace"
 import type {
   ServiceResult,
@@ -142,6 +143,16 @@ export async function createTransaction(
   }
 
   try {
+    if (parsed.data.type === "EXPENSE") {
+      const budgetError = await validateExpenseAgainstBudget(
+        userId,
+        parsed.data.categoryId,
+        new Decimal(parsed.data.amount),
+        parsed.data.date
+      )
+      if (budgetError) return { error: budgetError }
+    }
+
     const transaction = await prisma.transaction.create({
       data: {
         ...parsed.data,
@@ -168,6 +179,30 @@ export async function updateTransaction(
   }
 
   try {
+    const current = await prisma.transaction.findUnique({
+      where: { id, userId },
+      select: { categoryId: true, type: true, amount: true, date: true },
+    })
+    if (!current) return { error: "Transaction not found" }
+
+    const nextCategoryId = parsed.data.categoryId ?? current.categoryId
+    const nextType = parsed.data.type ?? current.type
+    const nextAmount = parsed.data.amount
+      ? new Decimal(parsed.data.amount)
+      : current.amount
+    const nextDate = parsed.data.date ?? current.date
+
+    if (nextType === "EXPENSE") {
+      const budgetError = await validateExpenseAgainstBudget(
+        userId,
+        nextCategoryId,
+        nextAmount,
+        nextDate,
+        id
+      )
+      if (budgetError) return { error: budgetError }
+    }
+
     const transaction = await prisma.transaction.update({
       where: { id, userId },
       data: {

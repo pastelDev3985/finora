@@ -65,6 +65,20 @@ async function computeSpent(
   return byCat.get(categoryId) ?? new Decimal(0)
 }
 
+async function getMonthlyIncome(
+  userId: string,
+  month: number,
+  year: number
+): Promise<Decimal> {
+  const startDate = new Date(year, month - 1, 1)
+  const endDate = new Date(year, month, 0, 23, 59, 59, 999)
+  const rows = await prisma.transaction.findMany({
+    where: { userId, type: "INCOME", date: { gte: startDate, lte: endDate } },
+    select: { amount: true },
+  })
+  return rows.reduce((total, row) => total.add(row.amount), new Decimal(0))
+}
+
 // ─── Service functions ────────────────────────────────────────────────────────
 
 export async function listBudgets(
@@ -105,6 +119,31 @@ export async function listBudgets(
   } catch (error) {
     console.error("[listBudgets]", error)
     return { error: "Failed to fetch budgets" }
+  }
+}
+
+export async function getBudgetAllocationSummary(
+  userId: string,
+  month: number,
+  year: number
+): Promise<ServiceResult<{ monthlyIncome: Decimal; totalBudgets: Decimal }>> {
+  try {
+    const [monthlyIncome, total] = await Promise.all([
+      getMonthlyIncome(userId, month, year),
+      prisma.budget.aggregate({
+        where: { userId, month, year },
+        _sum: { limitAmount: true },
+      }),
+    ])
+    return {
+      data: {
+        monthlyIncome,
+        totalBudgets: total._sum.limitAmount ?? new Decimal(0),
+      },
+    }
+  } catch (error) {
+    console.error("[getBudgetAllocationSummary]", error)
+    return { error: "Failed to fetch budget allocation" }
   }
 }
 
@@ -153,6 +192,35 @@ export async function upsertBudget(
   const { categoryId, limitAmount, month, year } = parsed.data
 
   try {
+    const monthlyIncome = await getMonthlyIncome(userId, month, year)
+    if (monthlyIncome.equals(0)) {
+      return {
+        error: "Record income for this month before creating a budget.",
+      }
+    }
+
+    const existing = await prisma.budget.findUnique({
+      where: { userId_categoryId_month_year: { userId, categoryId, month, year } },
+      select: { limitAmount: true },
+    })
+    const existingTotal = await prisma.budget.aggregate({
+      where: {
+        userId,
+        month,
+        year,
+        ...(existing ? { categoryId: { not: categoryId } } : {}),
+      },
+      _sum: { limitAmount: true },
+    })
+    const totalBudgets = (existingTotal._sum.limitAmount ?? new Decimal(0)).add(
+      new Decimal(limitAmount)
+    )
+    if (totalBudgets.greaterThan(monthlyIncome)) {
+      return {
+        error: `Your monthly budgets cannot exceed your income of ${monthlyIncome.toFixed(2)}.`,
+      }
+    }
+
     const budget = await prisma.budget.upsert({
       where: { userId_categoryId_month_year: { userId, categoryId, month, year } },
       update: { limitAmount: new Decimal(limitAmount) },
@@ -183,6 +251,44 @@ export async function upsertBudget(
     console.error("[upsertBudget]", error)
     return { error: "Failed to save budget" }
   }
+}
+
+export async function validateExpenseAgainstBudget(
+  userId: string,
+  categoryId: string,
+  amount: Decimal,
+  date: Date,
+  excludeTransactionId?: string
+): Promise<string | null> {
+  const month = date.getMonth() + 1
+  const year = date.getFullYear()
+  const budget = await prisma.budget.findUnique({
+    where: { userId_categoryId_month_year: { userId, categoryId, month, year } },
+    select: { limitAmount: true, category: { select: { name: true } } },
+  })
+  if (!budget) return null
+
+  const startDate = new Date(year, month - 1, 1)
+  const endDate = new Date(year, month, 0, 23, 59, 59, 999)
+  const spent = await prisma.transaction.findMany({
+    where: {
+      userId,
+      categoryId,
+      type: "EXPENSE",
+      date: { gte: startDate, lte: endDate },
+      ...(excludeTransactionId ? { id: { not: excludeTransactionId } } : {}),
+    },
+    select: { amount: true },
+  })
+  const totalSpent = spent.reduce(
+    (total, transaction) => total.add(transaction.amount),
+    amount
+  )
+
+  if (totalSpent.greaterThan(budget.limitAmount)) {
+    return `This expense would exceed your ${budget.category.name} budget for the month.`
+  }
+  return null
 }
 
 export async function deleteBudget(

@@ -25,6 +25,10 @@ interface BudgetsClientProps {
   budgets: BudgetCardData[]
   expenseCategories: Category[]
   currencySymbol: string
+  monthlyIncome: string | null
+  totalBudgets: string | null
+  remainingIncome: string | null
+  hasMonthlyIncome: boolean
   month: number
   year: number
 }
@@ -38,6 +42,10 @@ export function BudgetsClient({
   budgets: initialBudgets,
   expenseCategories,
   currencySymbol,
+  monthlyIncome,
+  totalBudgets,
+  remainingIncome,
+  hasMonthlyIncome,
   month,
   year,
 }: BudgetsClientProps) {
@@ -112,6 +120,27 @@ export function BudgetsClient({
           </button>
         </div>
       </div>
+
+      {hasMonthlyIncome && monthlyIncome && totalBudgets && remainingIncome ? (
+        <div className="grid gap-3 rounded-2xl border border-border bg-card p-4 text-sm sm:grid-cols-3">
+          <div>
+            <p className="text-muted-foreground">Monthly income</p>
+            <p className="font-semibold tabular-nums text-foreground">{monthlyIncome}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Budgeted</p>
+            <p className="font-semibold tabular-nums text-foreground">{totalBudgets}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Available to budget</p>
+            <p className="font-semibold tabular-nums text-primary">{remainingIncome}</p>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-[var(--color-error)]/30 bg-[var(--color-error)]/10 p-4 text-sm text-[var(--color-error)]">
+          Record income for {MONTH_NAMES[month - 1]} {year} before creating budgets.
+        </div>
+      )}
 
       {initialBudgets.length === 0 ? (
         <EmptyState

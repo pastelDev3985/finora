@@ -15,6 +15,8 @@ export async function createTransactionAction(data: unknown) {
   const result = await createTransaction(session.user.id, data)
   if (result.error) return { error: result.error }
   revalidatePath("/transactions")
+  revalidatePath("/dashboard")
+  revalidatePath("/budgets")
   return {}
 }
 
@@ -25,6 +27,8 @@ export async function updateTransactionAction(id: string, data: unknown) {
   const result = await updateTransaction(session.user.id, id, data)
   if (result.error) return { error: result.error }
   revalidatePath("/transactions")
+  revalidatePath("/dashboard")
+  revalidatePath("/budgets")
   return {}
 }
 
@@ -35,5 +39,7 @@ export async function deleteTransactionAction(id: string) {
   const result = await deleteTransaction(session.user.id, id)
   if (result.error) return { error: result.error }
   revalidatePath("/transactions")
+  revalidatePath("/dashboard")
+  revalidatePath("/budgets")
   return {}
 }

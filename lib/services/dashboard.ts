@@ -29,23 +29,34 @@ export async function getDashboardSummary(
 
   try {
     const transactions = await prisma.transaction.findMany({
-      where: { userId, date: { gte: startDate, lte: endDate } },
-      select: { type: true, amount: true },
+      where: { userId, date: { lte: endDate } },
+      select: { type: true, amount: true, date: true },
     })
 
     let totalIncome = new Decimal(0)
     let totalExpenses = new Decimal(0)
+    let balance = new Decimal(0)
 
     for (const tx of transactions) {
-      if (tx.type === "INCOME") totalIncome = totalIncome.add(tx.amount)
-      else totalExpenses = totalExpenses.add(tx.amount)
+      if (tx.type === "INCOME") {
+        balance = balance.add(tx.amount)
+      } else {
+        balance = balance.sub(tx.amount)
+      }
+
+      // Keep the summary totals monthly while carrying the resulting balance
+      // forward from all earlier months.
+      if (tx.date >= startDate) {
+        if (tx.type === "INCOME") totalIncome = totalIncome.add(tx.amount)
+        else totalExpenses = totalExpenses.add(tx.amount)
+      }
     }
 
     return {
       data: {
         totalIncome,
         totalExpenses,
-        net: totalIncome.sub(totalExpenses),
+        net: balance,
         month,
         year,
       },
